@@ -51,69 +51,46 @@ def fetch_page(endpoint, params, page_number):
         logging.error(traceback.format_exc())
         raise
 
-def fetch_endpoint_data(endpoint, params, progress_callback):
+def fetch_endpoint_data(endpoint, params, progress_callback=None):
     """
-    Fetch all data from a specific API endpoint with given parameters using concurrent requests.
+    Pobierz wszystkie dane z podanego endpointu API.
+    
+    endpoint: str
+        Nazwa endpointu API.
+    params: dict
+        Parametry zapytania.
+    progress_callback: callable, optional
+        Funkcja do aktualizacji postępu, przyjmuje jeden argument (procent postępu).
     """
     try:
-        # Fetch the first page to get total pages
-        url = f"{BASE_URL}{endpoint}"
-        response = requests.get(url, auth=AUTH, params=params)
-        if response.status_code != 200:
-            logging.error(f"Błąd API ({endpoint}): {response.status_code}, {response.text}")
-            raise Exception(f"Błąd API ({endpoint}): {response.status_code}, {response.text}")
-        data = response.json()
-        all_data = data.get('data', [])
+        num_pages = get_total_pages(endpoint, params)
+        results = []
+        
+        # Aktualizacja postępu na początku
+        if progress_callback:
+            progress_callback(0)
 
-        total_size = data.get('totalSize', 0)
-        limit = params.get('limit', 100)
-        num_pages = math.ceil(total_size / limit)
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            future_to_page = {executor.submit(fetch_page, endpoint, params, i): i for i in range(1, num_pages + 1)}
+            for count, future in enumerate(as_completed(future_to_page), start=1):
+                try:
+                    page_data = future.result()
+                    results.extend(page_data)
+                    
+                    # Aktualizacja postępu po każdej zakończonej stronie
+                    if progress_callback:
+                        progress_callback(count / num_pages * 100)
 
-        progress_callback('start', endpoint, num_pages)
-
-        # Add progress update for the first page
-        progress_callback('progress', endpoint)
-
-        if num_pages > 1:
-            # Prepare parameters for additional pages
-            pages = list(range(2, num_pages + 1))
-
-            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-                # Submit all page fetch tasks
-                future_to_page = {executor.submit(fetch_page, endpoint, params, page): page for page in pages}
-
-                for future in as_completed(future_to_page):
-                    page = future_to_page[future]
-                    try:
-                        page_data = future.result()
-                        all_data.extend(page_data)
-                        progress_callback('progress', endpoint)
-                    except Exception as e:
-                        logging.error(f"Błąd podczas przetwarzania strony {page} z API ({endpoint}): {e}")
-                        progress_callback('error', str(e))
-                        raise
-
-        progress_callback('complete', endpoint)
-        df = pd.DataFrame(all_data)
-
-        # Debugowanie surowych danych
-        logging.debug(f"Surowe dane z endpointu '{endpoint}':")
-        logging.debug(df.head())
-
-        # Konwersja kolumny 'entryDate' do typu datetime, jeśli istnieje
-        if 'entryDate' in df.columns:
-            df['entryDate'] = pd.to_datetime(df['entryDate'], errors='coerce')
-        elif 'EntryDate' in df.columns:
-            df['EntryDate'] = pd.to_datetime(df['EntryDate'], errors='coerce')
-            df.rename(columns={'EntryDate': 'entryDate'}, inplace=True)
-            logging.info("Kolumna 'EntryDate' została przemianowana na 'entryDate'.")
-        else:
-            logging.error(f"Brak kolumny 'entryDate' w danych z endpointu '{endpoint}'.")
-            raise KeyError("'entryDate'")
-
-        return df
+                except Exception as e:
+                    logging.error(f"Błąd podczas pobierania strony {future_to_page[future]}: {e}")
+        
+        # Ustawienie postępu na 100% po zakończeniu
+        if progress_callback:
+            progress_callback(100)
+            
+        return pd.DataFrame(results)
+    
     except Exception as e:
         logging.error(f"Błąd podczas pobierania danych z API ({endpoint}): {e}")
         logging.error(traceback.format_exc())
-        progress_callback('error', str(e))
         raise

@@ -239,20 +239,11 @@ class MainWindow:
             self.progress_queue.put(('error', str(e)))
             logging.error(f"Error in data fetching thread: {e}")
 
-    def api_progress_callback(self, status, endpoint, *args):
+    def api_progress_callback(self, progress):
         """
         Callback function to communicate progress from API functions to the main thread.
         """
-        if status == 'start':
-            num_pages = args[0]  # Extract the number of pages from args
-            self.progress_queue.put(('step_start', endpoint, num_pages))
-        elif status == 'progress':
-            self.progress_queue.put(('page_progress', endpoint))
-        elif status == 'complete':
-            self.progress_queue.put(('step_complete', endpoint))
-        elif status == 'error':
-            error_message = args[0]
-            self.progress_queue.put(('error', error_message))
+        self.progress_queue.put(('page_progress', progress))
 
     def process_queue(self):
         """
@@ -269,19 +260,9 @@ class MainWindow:
                     self.progress_var.set(0)
                     logging.debug(f"Progress bar maximum set to {total_pages} total pages.")
 
-                elif message[0] == 'step_start':
-                    endpoint, num_pages = message[1], message[2]
-                    logging.info(f"Endpoint '{endpoint}' ma {num_pages} stron.")
-                    logging.debug(f"Endpoint '{endpoint}' has {num_pages} pages.")
-
                 elif message[0] == 'page_progress':
                     self.progress_var.set(self.progress_var.get() + 1)
                     logging.debug(f"Progress updated to {self.progress_var.get()} / {self.progress_bar['maximum']}")
-
-                elif message[0] == 'step_complete':
-                    step = message[1]
-                    logging.info(f"Pobrano dane dla: {step}")
-                    logging.debug(f"Step completed: {step}")
 
                 elif message[0] == 'done':
                     self.df_transactions, self.df_products, self.df_customers = message[1]
