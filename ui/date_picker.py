@@ -1,20 +1,28 @@
-# File: ui/date_picker.py
-
 import tkinter as tk
+from tkcalendar import DateEntry
 from tkinter import ttk
-from tkcalendar import Calendar
 
-def select_date(parent, entry_field):
-    """Opens a calendar to select a date and inserts it into the given entry field."""
-    def on_date_select():
-        selected_date = cal.selection_get()
-        entry_field.delete(0, tk.END)
-        entry_field.insert(0, selected_date.strftime('%Y-%m-%d'))
-        top.destroy()
+def select_date(parent):
+    """
+    Opens a dialog with a calendar and returns the selected date as a string in YYYY-MM-DD format.
+    """
+    selected_date = tk.StringVar()
 
-    top = tk.Toplevel(parent)
-    top.grab_set()
-    cal = Calendar(top, selectmode='day', date_pattern='yyyy-mm-dd')
+    dialog = tk.Toplevel(parent)
+    dialog.title("Select Date")
+    dialog.grab_set()  # Make the dialog modal
+
+    ttk.Label(dialog, text="Please select a date:").pack(padx=10, pady=10)
+    cal = DateEntry(dialog, date_pattern='yyyy-mm-dd', width=12, background='darkblue',
+                    foreground='white', borderwidth=2)
     cal.pack(padx=10, pady=10)
 
-    ttk.Button(top, text="Wybierz", command=on_date_select).pack(pady=5)
+    def on_ok():
+        selected = cal.get_date()
+        selected_date.set(selected.strftime('%Y-%m-%d'))
+        dialog.destroy()
+
+    ttk.Button(dialog, text="OK", command=on_ok).pack(pady=5)
+
+    dialog.wait_window()  # Wait until the dialog is closed
+    return selected_date.get()

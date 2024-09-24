@@ -1,107 +1,108 @@
-# File: ui/main_window.py
-
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog, filedialog
+from tkinter import ttk, messagebox, filedialog
 from ttkthemes import ThemedTk
 import threading
 import queue
 from datetime import datetime, timedelta
 
 from api.fetching import get_total_pages, fetch_endpoint_data
-from ui.date_picker import select_date
 from utils.logger import setup_logger
-from analysis.report_generation import generate_sales_report
-from analysis.product_analysis import analyze_product
-from analysis.sales_analysis import daily_sales_report, sales_report_range
-
 import pandas as pd
 import logging
+
+# Import DateEntry from tkcalendar
+from tkcalendar import DateEntry
 
 # Initialize logger
 setup_logger()
 
 def debug_dataframe(df, name="DataFrame"):
     """
-    Funkcja do wyświetlania struktury i przykładowych danych DataFrame.
+    Function to display DataFrame structure and sample data.
     """
     print(f"\n--- Debugging {name} ---")
-    print("Struktura DataFrame:")
+    print("DataFrame structure:")
     print(df.info())
-    print("\nPrzykładowe dane:")
+    print("\nSample data:")
     print(df.head())
     print("--- End Debugging ---\n")
 
 class MainWindow:
-    def __init__(self, root):
-        self.window = root
-        self.window.title("Zaawansowane Raportowanie Danych z Firmao")
-        self.window.geometry("800x600")  # Zwiększenie rozmiaru okna dla nowych funkcji
+    def __init__(self):
+        self.window = ThemedTk(theme="arc")
+        self.window.title("Firmao Data Downloader")
+        self.window.geometry("600x400")
+        self.window.resizable(False, False)
 
         # Create a thread-safe queue for progress updates
         self.progress_queue = queue.Queue()
-
-        # Labels and date entry fields
-        self.create_date_fields()
-
-        # Buttons
-        self.create_buttons()
-
-        # Progress bar
-        self.create_progress_bar()
-
-        # Set default dates
-        self.set_default_dates()
 
         # Initialize dataframes
         self.df_transactions = pd.DataFrame()
         self.df_products = pd.DataFrame()
         self.df_customers = pd.DataFrame()
 
-    def create_date_fields(self):
-        # Data początkowa
-        start_date_label = ttk.Label(self.window, text="Data początkowa:")
-        start_date_label.grid(column=0, row=0, padx=10, pady=10, sticky="w")
-        self.start_date_entry = ttk.Entry(self.window, width=20)
-        self.start_date_entry.grid(column=1, row=0, padx=10, pady=10, sticky="w")
-        ttk.Button(self.window, text="Wybierz", command=lambda: select_date(self.window, self.start_date_entry)).grid(column=2, row=0, padx=5)
+        # Create UI elements
+        self.create_widgets()
 
-        # Data końcowa
-        end_date_label = ttk.Label(self.window, text="Data końcowa:")
-        end_date_label.grid(column=0, row=1, padx=10, pady=10, sticky="w")
-        self.end_date_entry = ttk.Entry(self.window, width=20)
-        self.end_date_entry.grid(column=1, row=1, padx=10, pady=10, sticky="w")
-        ttk.Button(self.window, text="Wybierz", command=lambda: select_date(self.window, self.end_date_entry)).grid(column=2, row=1, padx=5)
+        # Set default dates
+        self.set_default_dates()
 
-    def create_buttons(self):
-        # Pobierz dane
-        self.fetch_button = ttk.Button(self.window, text="Pobierz dane", command=self.fetch_data)
-        self.fetch_button.grid(column=0, row=2, columnspan=3, pady=10)
+        # Start the main loop
+        self.window.mainloop()
 
-        # Analizuj dane
-        self.analyze_button = ttk.Button(self.window, text="Analizuj dane", command=self.analyze_data)
-        self.analyze_button.grid(column=0, row=3, columnspan=3, pady=10)
+    def create_widgets(self):
+        # Create main frame
+        main_frame = ttk.Frame(self.window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Generuj Raport
-        self.report_button = ttk.Button(self.window, text="Generuj Raport", command=self.generate_report)
-        self.report_button.grid(column=0, row=4, columnspan=3, pady=10)
+        # Create a label frame for date selection
+        date_frame = ttk.LabelFrame(main_frame, text="Select Date Range", padding="10")
+        date_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        # Dodane funkcje
-        # Generuj Raport Codzienny
-        self.daily_report_button = ttk.Button(self.window, text="Generuj Raport Codzienny", command=self.generate_daily_report)
-        self.daily_report_button.grid(column=0, row=5, columnspan=3, pady=10)
+        # Start date using DateEntry
+        start_date_label = ttk.Label(date_frame, text="Start Date:")
+        start_date_label.grid(column=0, row=0, padx=5, pady=5, sticky="e")
+        self.start_date_entry = DateEntry(
+            date_frame,
+            date_pattern='yyyy-mm-dd',
+            width=12,
+            background='darkblue',
+            foreground='white',
+            borderwidth=2,
+            selectmode='day'
+        )
+        self.start_date_entry.grid(column=1, row=0, padx=5, pady=5)
+        # Removed the line causing the AttributeError
 
-        # Generuj Raport dla Zakresu Dat
-        self.range_report_button = ttk.Button(self.window, text="Generuj Raport dla Zakresu Dat", command=self.generate_range_report)
-        self.range_report_button.grid(column=0, row=6, columnspan=3, pady=10)
+        # End date using DateEntry
+        end_date_label = ttk.Label(date_frame, text="End Date:")
+        end_date_label.grid(column=0, row=1, padx=5, pady=5, sticky="e")
+        self.end_date_entry = DateEntry(
+            date_frame,
+            date_pattern='yyyy-mm-dd',
+            width=12,
+            background='darkblue',
+            foreground='white',
+            borderwidth=2,
+            selectmode='day'
+        )
+        self.end_date_entry.grid(column=1, row=1, padx=5, pady=5)
+        # Removed the line causing the AttributeError
 
-        # Analizuj Produkt
-        self.product_analysis_button = ttk.Button(self.window, text="Analizuj Produkt", command=self.analyze_specific_product)
-        self.product_analysis_button.grid(column=0, row=7, columnspan=3, pady=10)
+        # Fetch data button
+        self.fetch_button = ttk.Button(main_frame, text="Fetch Data", command=self.fetch_data)
+        self.fetch_button.pack(pady=10)
 
-    def create_progress_bar(self):
+        # Save data button
+        self.save_button = ttk.Button(main_frame, text="Save Data to CSV", command=self.save_data_to_csv)
+        self.save_button.pack(pady=5)
+        self.save_button.config(state='disabled')
+
+        # Progress bar
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(self.window, variable=self.progress_var, maximum=0, length=700)
-        self.progress_bar.grid(column=0, row=8, columnspan=3, padx=10, pady=20)
+        self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar.pack(fill=tk.X, padx=20, pady=20)
 
     def set_default_dates(self):
         today = datetime.today()
@@ -109,35 +110,23 @@ class MainWindow:
         last_day_of_previous_month = first_day_of_current_month - timedelta(days=1)
         first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
 
-        self.start_date_entry.insert(0, first_day_of_previous_month.strftime('%Y-%m-%d'))
-        self.end_date_entry.insert(0, last_day_of_previous_month.strftime('%Y-%m-%d'))
+        self.start_date_entry.set_date(first_day_of_previous_month)
+        self.end_date_entry.set_date(last_day_of_previous_month)
 
     def fetch_data(self):
         try:
-            # Parse the input dates
-            start_date_str = self.start_date_entry.get()
-            end_date_str = self.end_date_entry.get()
-
-            # Parse the input dates
-            try:
-                start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-                end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-            except ValueError:
-                messagebox.showerror("Błąd", "Nieprawidłowy format daty. Użyj YYYY-MM-DD.")
-                return
+            # Parse the input dates from DateEntry widgets
+            start_date = self.start_date_entry.get_date()
+            end_date = self.end_date_entry.get_date()
 
             # Validate date range
             if start_date > end_date:
-                messagebox.showerror("Błąd", "Data początkowa nie może być późniejsza niż data końcowa.")
+                messagebox.showerror("Error", "Start date cannot be later than end date.")
                 return
 
             # Disable the fetch button to prevent multiple clicks
             self.fetch_button.config(state='disabled')
-            self.analyze_button.config(state='disabled')
-            self.report_button.config(state='disabled')
-            self.daily_report_button.config(state='disabled')
-            self.range_report_button.config(state='disabled')
-            self.product_analysis_button.config(state='disabled')
+            self.save_button.config(state='disabled')
 
             # Reset the progress bar
             self.progress_var.set(0)
@@ -145,20 +134,17 @@ class MainWindow:
 
             # Start the data fetching in a separate thread
             thread = threading.Thread(target=self.fetch_data_thread, args=(start_date, end_date))
+            thread.daemon = True  # Ensure thread exits when main program exits
             thread.start()
 
             # Start checking the queue for progress updates
             self.window.after(100, self.process_queue)
 
         except Exception as e:
-            logging.error(f"Błąd podczas inicjowania pobierania danych: {e}")
-            messagebox.showerror("Błąd", f"Wystąpił błąd podczas inicjowania pobierania danych: {e}")
+            logging.error(f"Error during data fetch initialization: {e}")
+            messagebox.showerror("Error", f"An error occurred during data fetch initialization: {e}")
             self.fetch_button.config(state='normal')
-            self.analyze_button.config(state='normal')
-            self.report_button.config(state='normal')
-            self.daily_report_button.config(state='normal')
-            self.range_report_button.config(state='normal')
-            self.product_analysis_button.config(state='normal')
+            self.save_button.config(state='disabled')
 
     def fetch_data_thread(self, start_date, end_date):
         """
@@ -202,48 +188,47 @@ class MainWindow:
                 }
             ]
 
+            # Initialize dataframes
+            self.df_transactions = pd.DataFrame()
+            self.df_products = pd.DataFrame()
+            self.df_customers = pd.DataFrame()
+
+            total_steps = 0
+
             # Calculate total number of pages across all endpoints
-            total_pages = 0
             for endpoint in endpoints:
                 num_pages = get_total_pages(endpoint['name'], endpoint['params'])
-                total_pages += num_pages
+                total_steps += num_pages
 
-            # Set progress bar maximum
-            self.progress_queue.put(('set_maximum', total_pages))
-            logging.debug(f"Progress bar maximum set to {total_pages} total pages.")
-
-            # Initialize dataframes
-            df_transactions = pd.DataFrame()
-            df_products = pd.DataFrame()
-            df_customers = pd.DataFrame()
+            # Update progress bar maximum
+            self.progress_queue.put(('set_maximum', total_steps))
 
             # Fetch data for each endpoint
             for endpoint in endpoints:
+                data_df = fetch_endpoint_data(endpoint['name'], endpoint['params'], self.api_progress_callback)
                 if endpoint['name'] == 'transactions':
-                    df_transactions = fetch_endpoint_data(endpoint['name'], endpoint['params'], self.api_progress_callback)
+                    self.df_transactions = data_df
                 elif endpoint['name'] == 'products':
-                    df_products = fetch_endpoint_data(endpoint['name'], endpoint['params'], self.api_progress_callback)
+                    self.df_products = data_df
                 elif endpoint['name'] == 'customers':
-                    df_customers = fetch_endpoint_data(endpoint['name'], endpoint['params'], self.api_progress_callback)
+                    self.df_customers = data_df
 
             # Finalize progress
-            self.progress_queue.put(('done', (df_transactions, df_products, df_customers)))
+            self.progress_queue.put(('done', None))
+
             logging.debug("Data fetching complete")
 
-            # Debugowanie DataFrame
-            debug_dataframe(df_transactions, "df_transactions")
-            debug_dataframe(df_products, "df_products")
-            debug_dataframe(df_customers, "df_customers")
-
         except Exception as e:
-            self.progress_queue.put(('error', str(e)))
             logging.error(f"Error in data fetching thread: {e}")
+            self.progress_queue.put(('error', f"Error during data fetching: {e}"))
 
-    def api_progress_callback(self, progress):
+    def api_progress_callback(self, status, *args):
         """
         Callback function to communicate progress from API functions to the main thread.
         """
-        self.progress_queue.put(('page_progress', progress))
+        if status == 'progress':
+            # Increment progress
+            self.progress_queue.put(('increment', None))
 
     def process_queue(self):
         """
@@ -252,227 +237,101 @@ class MainWindow:
         try:
             while not self.progress_queue.empty():
                 message = self.progress_queue.get_nowait()
-                logging.debug(f"Processing message: {message}")  # Debug log
-
                 if message[0] == 'set_maximum':
-                    total_pages = message[1]
-                    self.progress_bar.config(maximum=total_pages)
+                    total_steps = message[1]
+                    self.progress_bar['maximum'] = total_steps
                     self.progress_var.set(0)
-                    logging.debug(f"Progress bar maximum set to {total_pages} total pages.")
-
-                elif message[0] == 'page_progress':
+                elif message[0] == 'increment':
                     self.progress_var.set(self.progress_var.get() + 1)
-                    logging.debug(f"Progress updated to {self.progress_var.get()} / {self.progress_bar['maximum']}")
-
                 elif message[0] == 'done':
-                    self.df_transactions, self.df_products, self.df_customers = message[1]
-                    # Re-enable the buttons
+                    # Re-enable buttons
                     self.fetch_button.config(state='normal')
-                    self.analyze_button.config(state='normal')
-                    self.report_button.config(state='normal')
-                    self.daily_report_button.config(state='normal')
-                    self.range_report_button.config(state='normal')
-                    self.product_analysis_button.config(state='normal')
+                    self.save_button.config(state='normal')
 
                     # Inform the user about the fetched data
-                    if self.df_transactions.empty:
-                        messagebox.showinfo("Informacja", "Brak danych transakcji do pobrania w wybranym zakresie dat.")
-                        logging.info("Brak danych transakcji do pobrania.")
-                    else:
-                        # Informacja o liczbie pobranych rekordów
+                    summary = ""
+                    if not self.df_transactions.empty:
                         record_count = len(self.df_transactions)
-                        messagebox.showinfo("Sukces", f"Pobrano {record_count} rekordów transakcji.")
-                        logging.info(f"Pobrano {record_count} rekordów transakcji.")
-
-                    # Informacja o pobranych produktach i klientach
-                    if not self.df_products.empty:
-                        messagebox.showinfo("Sukces", f"Pobrano {len(self.df_products)} produktów.")
-                        logging.info(f"Pobrano {len(self.df_products)} produktów.")
+                        summary += f"Transactions: {record_count} records fetched.\n"
+                        logging.info(f"{record_count} transaction records fetched.")
                     else:
-                        messagebox.showwarning("Uwaga", "Brak danych produktów do pobrania.")
-                        logging.warning("Brak danych produktów do pobrania.")
+                        summary += "No transaction data fetched.\n"
+                        logging.info("No transaction data fetched.")
+
+                    if not self.df_products.empty:
+                        product_count = len(self.df_products)
+                        summary += f"Products: {product_count} records fetched.\n"
+                        logging.info(f"{product_count} product records fetched.")
+                    else:
+                        summary += "No product data fetched.\n"
+                        logging.info("No product data fetched.")
 
                     if not self.df_customers.empty:
-                        messagebox.showinfo("Sukces", f"Pobrano {len(self.df_customers)} klientów.")
-                        logging.info(f"Pobrano {len(self.df_customers)} klientów.")
+                        customer_count = len(self.df_customers)
+                        summary += f"Customers: {customer_count} records fetched.\n"
+                        logging.info(f"{customer_count} customer records fetched.")
                     else:
-                        messagebox.showwarning("Uwaga", "Brak danych klientów do pobrania.")
-                        logging.warning("Brak danych klientów do pobrania.")
+                        summary += "No customer data fetched.\n"
+                        logging.info("No customer data fetched.")
 
+                    messagebox.showinfo("Data Fetch Complete", summary)
                 elif message[0] == 'error':
                     error_message = message[1]
-                    messagebox.showerror("Błąd", f"Wystąpił błąd podczas pobierania danych: {error_message}")
-                    logging.error(f"Błąd podczas pobierania danych: {error_message}")
-                    # Re-enable the buttons
+                    messagebox.showerror("Error", f"An error occurred during data fetching: {error_message}")
+                    logging.error(f"Error during data fetching: {error_message}")
+                    # Re-enable the fetch button
                     self.fetch_button.config(state='normal')
-                    self.analyze_button.config(state='normal')
-                    self.report_button.config(state='normal')
-                    self.daily_report_button.config(state='normal')
-                    self.range_report_button.config(state='normal')
-                    self.product_analysis_button.config(state='normal')
-                    logging.debug(f"Error occurred: {error_message}")
+                    self.save_button.config(state='disabled')
 
             # Continue checking the queue
             self.window.after(100, self.process_queue)
 
         except Exception as e:
-            logging.error(f"Błąd podczas przetwarzania kolejki: {e}")
-            logging.debug(f"Error in process_queue: {e}")
+            logging.error(f"Error processing queue: {e}")
             self.window.after(100, self.process_queue)
 
-    def analyze_data(self):
-        # Implement your data analysis logic here
-        messagebox.showinfo("Informacja", "Funkcja analizy danych nie jest jeszcze zaimplementowana.")
-        logging.info("Analiza danych została wywołana, ale nie zaimplementowana.")
-
-    def generate_report(self):
-        # Implement your report generation logic here
-        messagebox.showinfo("Informacja", "Funkcja generowania raportu nie jest jeszcze zaimplementowana.")
-        logging.info("Generowanie raportu zostało wywołane, ale nie zaimplementowane.")
-
-    def generate_daily_report(self):
+    def save_data_to_csv(self):
         """
-        Funkcja do generowania raportu sprzedaży dla dnia.
+        Saves the fetched data to CSV files.
         """
         try:
-            report_date_str = simpledialog.askstring("Raport Codzienny", "Wprowadź datę (YYYY-MM-DD):")
-            if not report_date_str:
+            # Select directory to save files
+            directory = filedialog.askdirectory()
+            if not directory:
                 return
 
-            try:
-                report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()
-            except ValueError:
-                messagebox.showerror("Błąd", "Nieprawidłowy format daty. Użyj YYYY-MM-DD.")
-                return
+            # Save df_transactions
+            if not self.df_transactions.empty:
+                transactions_file = f"{directory}/transactions.csv"
+                self.df_transactions.to_csv(transactions_file, index=False)
+                logging.info(f"Transaction data saved to {transactions_file}")
+            else:
+                messagebox.showwarning("Warning", "No transaction data to save.")
+                logging.warning("No transaction data to save.")
 
-            # Sprawdzenie, czy 'entryDate' istnieje i jest typu datetime
-            if 'entryDate' not in self.df_transactions.columns:
-                messagebox.showerror("Błąd", "Dane transakcji nie zawierają kolumny 'entryDate'.")
-                logging.error("Dane transakcji nie zawierają kolumny 'entryDate'.")
-                return
+            # Save df_products
+            if not self.df_products.empty:
+                products_file = f"{directory}/products.csv"
+                self.df_products.to_csv(products_file, index=False)
+                logging.info(f"Product data saved to {products_file}")
+            else:
+                messagebox.showwarning("Warning", "No product data to save.")
+                logging.warning("No product data to save.")
 
-            if self.df_transactions['entryDate'].dtype != 'datetime64[ns]':
-                self.df_transactions['entryDate'] = pd.to_datetime(self.df_transactions['entryDate'], errors='coerce')
+            # Save df_customers
+            if not self.df_customers.empty:
+                customers_file = f"{directory}/customers.csv"
+                self.df_customers.to_csv(customers_file, index=False)
+                logging.info(f"Customer data saved to {customers_file}")
+            else:
+                messagebox.showwarning("Warning", "No customer data to save.")
+                logging.warning("No customer data to save.")
 
-            # Usunięcie wierszy z brakującymi datami
-            self.df_transactions = self.df_transactions.dropna(subset=['entryDate'])
-
-            # Debugowanie DataFrame
-            debug_dataframe(self.df_transactions, "df_transactions")
-
-            # Generowanie raportu
-            report = daily_sales_report(self.df_transactions, report_date)
-            if report is None:
-                messagebox.showerror("Błąd", "Nie udało się wygenerować raportu.")
-                return
-
-            # Tworzenie DataFrame z raportu
-            report_df = pd.DataFrame([report])
-
-            # Wybór lokalizacji do zapisania raportu
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".xlsx",
-                filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
-            )
-            if not file_path:
-                return
-
-            # Zapisywanie raportu do Excela
-            with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-                report_df.to_excel(writer, sheet_name='Raport Codzienny', index=False)
-
-            messagebox.showinfo("Sukces", f"Raport codzienny został zapisany: {file_path}")
-            logging.info(f"Raport codzienny został zapisany: {file_path}")
+            messagebox.showinfo("Success", f"Data has been saved in the folder: {directory}")
 
         except Exception as e:
-            logging.error(f"Błąd podczas generowania raportu codziennego: {e}")
-            messagebox.showerror("Błąd", f"Wystąpił błąd podczas generowania raportu: {e}")
+            logging.error(f"Error saving data to CSV: {e}")
+            messagebox.showerror("Error", f"An error occurred while saving data: {e}")
 
-    def generate_range_report(self):
-        """
-        Funkcja do generowania raportu sprzedaży dla zakresu dat.
-        """
-        try:
-            start_date_str = simpledialog.askstring("Raport Zakres Dat", "Wprowadź datę początkową (YYYY-MM-DD):")
-            if not start_date_str:
-                return
-
-            end_date_str = simpledialog.askstring("Raport Zakres Dat", "Wprowadź datę końcową (YYYY-MM-DD):")
-            if not end_date_str:
-                return
-
-            try:
-                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            except ValueError:
-                messagebox.showerror("Błąd", "Nieprawidłowy format daty. Użyj YYYY-MM-DD.")
-                return
-
-            if start_date > end_date:
-                messagebox.showerror("Błąd", "Data początkowa nie może być późniejsza niż data końcowa.")
-                return
-
-            # Generowanie raportu
-            report = sales_report_range(self.df_transactions, start_date, end_date)
-            if report is None:
-                messagebox.showerror("Błąd", "Nie udało się wygenerować raportu.")
-                return
-
-            # Tworzenie DataFrame z raportu
-            report_df = pd.DataFrame([report])
-
-            # Wybór lokalizacji do zapisania raportu
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".xlsx",
-                filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
-            )
-            if not file_path:
-                return
-
-            # Zapisywanie raportu do Excela
-            with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-                report_df.to_excel(writer, sheet_name='Raport Zakres Dat', index=False)
-
-            messagebox.showinfo("Sukces", f"Raport dla zakresu dat został zapisany: {file_path}")
-            logging.info(f"Raport dla zakresu dat został zapisany: {file_path}")
-
-        except Exception as e:
-            logging.error(f"Błąd podczas generowania raportu dla zakresu dat: {e}")
-            messagebox.showerror("Błąd", f"Wystąpił błąd podczas generowania raportu: {e}")
-
-    def analyze_specific_product(self):
-        """
-        Funkcja do analizy konkretnego produktu.
-        """
-        try:
-            product_name = simpledialog.askstring("Analiza Produktu", "Wprowadź nazwę produktu:")
-            if not product_name:
-                return
-
-            # Analiza produktu
-            analysis = analyze_product(self.df_transactions, self.df_products, product_name)
-            if analysis is None:
-                messagebox.showerror("Błąd", f"Nie udało się przeanalizować produktu '{product_name}'.")
-                return
-
-            # Tworzenie DataFrame z analizy
-            analysis_df = pd.DataFrame([analysis])
-
-            # Wybór lokalizacji do zapisania analizy
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".xlsx",
-                filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
-            )
-            if not file_path:
-                return
-
-            # Zapisywanie analizy do Excela
-            with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-                analysis_df.to_excel(writer, sheet_name='Analiza Produktu', index=False)
-
-            messagebox.showinfo("Sukces", f"Analiza produktu '{product_name}' została zapisana: {file_path}")
-            logging.info(f"Analiza produktu '{product_name}' została zapisana: {file_path}")
-
-        except Exception as e:
-            logging.error(f"Błąd podczas analizy produktu: {e}")
-            messagebox.showerror("Błąd", f"Wystąpił błąd podczas analizy produktu: {e}")
+if __name__ == "__main__":
+    MainWindow()

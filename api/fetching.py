@@ -1,5 +1,3 @@
-# File: api/fetching.py
-
 import math
 import requests
 import pandas as pd
@@ -53,22 +51,23 @@ def fetch_page(endpoint, params, page_number):
 
 def fetch_endpoint_data(endpoint, params, progress_callback=None):
     """
-    Pobierz wszystkie dane z podanego endpointu API.
+    Fetch all data from the given API endpoint.
     
     endpoint: str
-        Nazwa endpointu API.
+        The API endpoint name.
     params: dict
-        Parametry zapytania.
+        Query parameters.
     progress_callback: callable, optional
-        Funkcja do aktualizacji postępu, przyjmuje jeden argument (procent postępu).
+        Function to update progress, accepts variable arguments.
     """
     try:
         num_pages = get_total_pages(endpoint, params)
-        results = []
-        
-        # Aktualizacja postępu na początku
+
+        # Call progress_callback with 'start'
         if progress_callback:
-            progress_callback(0)
+            progress_callback('start', endpoint, num_pages)
+
+        results = []
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             future_to_page = {executor.submit(fetch_page, endpoint, params, i): i for i in range(1, num_pages + 1)}
@@ -76,21 +75,29 @@ def fetch_endpoint_data(endpoint, params, progress_callback=None):
                 try:
                     page_data = future.result()
                     results.extend(page_data)
-                    
-                    # Aktualizacja postępu po każdej zakończonej stronie
+
+                    # Call progress_callback with 'progress'
                     if progress_callback:
-                        progress_callback(count / num_pages * 100)
+                        progress_callback('progress', endpoint)
 
                 except Exception as e:
-                    logging.error(f"Błąd podczas pobierania strony {future_to_page[future]}: {e}")
-        
-        # Ustawienie postępu na 100% po zakończeniu
+                    logging.error(f"Błąd podczas pobierania strony {future_to_page[future]} z API ({endpoint}): {e}")
+                    logging.error(traceback.format_exc())
+                    # Call progress_callback with 'error'
+                    if progress_callback:
+                        progress_callback('error', endpoint, str(e))
+                    raise  # Re-raise the exception to stop processing
+
+        # Call progress_callback with 'complete'
         if progress_callback:
-            progress_callback(100)
-            
+            progress_callback('complete', endpoint)
+
         return pd.DataFrame(results)
-    
+
     except Exception as e:
         logging.error(f"Błąd podczas pobierania danych z API ({endpoint}): {e}")
         logging.error(traceback.format_exc())
+        # Call progress_callback with 'error'
+        if progress_callback:
+            progress_callback('error', endpoint, str(e))
         raise
